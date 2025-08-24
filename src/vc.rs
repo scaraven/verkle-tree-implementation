@@ -1,4 +1,4 @@
-use blake3::{Hash, Hasher};
+use blake3::Hasher;
 
 pub const ARITY: usize = 256;
 
