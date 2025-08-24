@@ -1,7 +1,7 @@
 pub(crate) type Stem = [u8; 31];
 pub(crate) type Suffix = u8;
 
-pub struct Value(Vec<u8>);
+pub struct Value(pub Vec<u8>);
 
 pub(crate) enum Node {
     Internal {

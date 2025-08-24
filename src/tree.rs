@@ -93,7 +93,7 @@ impl VerkleTree {
                         match node {
                             Node::Internal { children } => {
                                 let idx = stem[i] as usize;
-                                node = children[idx].as_mut().unwrap();
+                                node = children[idx].as_deref_mut().unwrap();
                             }
                             _ => unreachable!("Cannot have extension node right after splitting"),
                         }
