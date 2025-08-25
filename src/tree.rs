@@ -1,6 +1,5 @@
 use crate::{
-    node::{split_extension, split_key, ExtensionNode, Node},
-    Value,
+    node::{split_extension, split_key, ExtensionNode, Node}, vc::{digest_commitment, digest_value, recompute_commitment, FakeVC, Step, VectorCommitment, VerkleProof}, Value
 };
 
 pub struct VerkleTree {
@@ -144,5 +143,80 @@ impl VerkleTree {
             // Any other shape would be a construction bug
             _ => unreachable!("unexpected node at depth 31"),
         }
+    }
+
+    pub fn prove_get(&self, key: [u8; 32]) -> Option<(Vec<u8>, VerkleProof)> {
+        let (stem, suf) = split_key(key);
+
+        let mut node = match &self.root {
+            Some(node) => node,
+            None => return None,
+        };
+
+        let mut proof = VerkleProof {
+            steps: Vec::new(),
+            value: Vec::new(),
+        };
+
+        for byte in stem {
+            match node {
+                Node::Internal { children } => {
+                    let parent = recompute_commitment(node);
+                    // Access child based on stem byte
+                    let child = children[byte as usize].as_deref();
+
+                    // Check whether child exists
+                    match child {
+                        // If child does not exist, return None
+                        None => return None,
+                        // If child exists then calculate proof
+                        Some(child) => {
+                            let child_c = recompute_commitment(child);
+                            let target = digest_commitment(&child_c);
+                            let pi = FakeVC::open(&parent, byte, target);
+                            proof.steps.push(Step::Internal {
+                                parent_commit: parent,
+                                index: byte,
+                                child_commit: child_c,
+                                proof: pi,
+                            });
+
+                            node = child;
+                        }
+                    }
+                },
+                Node::Extension { stem: node_stem, slots: _ } => {
+                    if *node_stem != stem {
+                        return None;
+                    }
+
+                    // break
+                    break;
+                }
+            }
+        }
+
+        match node {
+            Node::Extension { stem: node_stem, slots: ext_slots } => {
+                if *node_stem != stem {
+                    return None;
+                }
+
+                let ext_c = recompute_commitment(node);
+                let val = ext_slots[suf as usize].as_ref()?;
+                let target = digest_value(&val.0);
+                let pi = FakeVC::open(&ext_c, suf, target);
+                proof.steps.push(Step::Extension {
+                    ext_commit: ext_c,
+                    index: suf,
+                    proof: pi,
+                });
+
+                proof.value = val.0.clone();
+            },
+            _ => unreachable!("Expected extension node"),
+        }
+
+        Some((proof.value.clone(), proof))
     }
 }

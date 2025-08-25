@@ -1,5 +1,7 @@
 use blake3::Hasher;
 
+use crate::node::Node;
+
 pub const ARITY: usize = 256;
 
 pub trait Digestible {
@@ -29,6 +31,12 @@ pub trait VectorCommitment {
 /// Fake VC using Blake3
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FakeCommitment(pub [u8; 32]);
+
+impl AsRef<[u8]> for FakeCommitment {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FakeProof(pub [u8; 32]);
@@ -66,7 +74,61 @@ impl VectorCommitment for FakeVC {
     }
 }
 
+pub struct VerkleProof {
+    pub steps: Vec<Step>,        // Internal hops (0..=some depth) + the final Extension hop
+    pub value: Vec<u8>,          // claimed value (for inclusion)
+}
+
+pub enum Step {
+    Internal {
+        parent_commit: FakeCommitment,
+        index: u8,               // stem byte at this depth
+        child_commit: FakeCommitment,
+        proof: FakeProof,        // opening(parent, index, digest(child_commit))
+    },
+    Extension {
+        ext_commit: FakeCommitment,
+        index: u8,               // suffix
+        proof: FakeProof,        // opening(ext, index, digest(value))
+    },
+}
+
 // Handy helper for anything "digestible"
 pub fn hash_bytes(input: &[u8]) -> [u8; 32] {
     *blake3::hash(input).as_bytes()
+}
+
+const ZERO32: [u8; 32] = [0u8; 32];
+
+pub fn digest_value(bytes: &[u8]) -> [u8; 32] { hash_bytes(bytes) }
+
+pub fn digest_commitment<C: AsRef<[u8]>>(c: &C) -> [u8; 32] { hash_bytes(c.as_ref()) }
+
+// generic over VC; for now use FakeVC in the call sites
+pub fn recompute_commitment(node: &Node) -> FakeCommitment {
+    match node {
+        Node::Internal { children } => {
+            let mut digests = [[0u8; 32]; ARITY];
+            for i in 0..ARITY {
+                digests[i] = match children[i].as_deref() {
+                    None => ZERO32,
+                    Some(child) => {
+                        let child_commit = recompute_commitment(child);
+                        digest_commitment(&child_commit)
+                    }
+                };
+            }
+            FakeVC::commit(&digests)
+        }
+        Node::Extension { slots, .. } => {
+            let mut digests = [[0u8; 32]; ARITY];
+            for i in 0..ARITY {
+                digests[i] = match &slots[i] {
+                    None => ZERO32,
+                    Some(v) => digest_value(&v.0),
+                };
+            }
+            FakeVC::commit(&digests)
+        }
+    }
 }
