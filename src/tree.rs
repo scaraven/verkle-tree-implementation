@@ -3,7 +3,7 @@ use crate::{
 };
 
 pub struct VerkleTree {
-    root: Option<Node>,
+    pub(crate) root: Option<Node>,
 }
 
 impl VerkleTree {
@@ -145,7 +145,7 @@ impl VerkleTree {
         }
     }
 
-    pub fn prove_get(&self, key: [u8; 32]) -> Option<(Vec<u8>, VerkleProof)> {
+    pub fn prove_get(&self, key: [u8; 32]) -> Option<VerkleProof> {
         let (stem, suf) = split_key(key);
 
         let mut node = match &self.root {
@@ -217,6 +217,6 @@ impl VerkleTree {
             _ => unreachable!("Expected extension node"),
         }
 
-        Some((proof.value.clone(), proof))
+        Some(proof)
     }
 }
