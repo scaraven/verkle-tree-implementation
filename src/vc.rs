@@ -100,7 +100,7 @@ pub fn hash_bytes(input: &[u8]) -> [u8; 32] {
     *blake3::hash(input).as_bytes()
 }
 
-pub const ZERO32: [u8; 32] = [0u8; 32];
+const ZERO32: [u8; 32] = [0u8; 32];
 
 pub fn digest_value(bytes: &[u8]) -> [u8; 32] { hash_bytes(bytes) }
 
