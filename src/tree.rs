@@ -1,5 +1,5 @@
 use crate::{
-    node::{split_extension, split_key, ExtensionNode, Node}, vc::{digest_commitment, digest_value, recompute_commitment, FakeVC, Step, VectorCommitment, VerkleProof}, Value
+    node::{split_extension, split_key, ExtensionNode, Node}, vc::{digest_commitment, digest_value, recompute_commitment, FakeVC, Step, VectorCommitment, VerkleProof, ZERO32}, Value
 };
 
 pub struct VerkleTree {
@@ -148,14 +148,14 @@ impl VerkleTree {
     pub fn prove_get(&self, key: [u8; 32]) -> Option<VerkleProof> {
         let (stem, suf) = split_key(key);
 
-        let mut node = match &self.root {
-            Some(node) => node,
-            None => return None,
-        };
-
         let mut proof = VerkleProof {
             steps: Vec::new(),
             value: Vec::new(),
+        };
+
+        let mut node = match &self.root {
+            Some(node) => node,
+            None => return None,
         };
 
         for byte in stem {
@@ -167,8 +167,11 @@ impl VerkleTree {
 
                     // Check whether child exists
                     match child {
-                        // If child does not exist, return None
-                        None => return None,
+                        // If child does not exist, return proof of absence
+                        None => {
+                            proof.steps.push(calc_absence_internal(node, byte));
+                            return Some(proof);
+                        },
                         // If child exists then calculate proof
                         Some(child) => {
                             let child_c = recompute_commitment(child);
@@ -187,7 +190,9 @@ impl VerkleTree {
                 },
                 Node::Extension { stem: node_stem, slots: _ } => {
                     if *node_stem != stem {
-                        return None;
+                        // Return proof of absence
+                        proof.steps.push(calc_absence_extension(node, byte));
+                        return Some(proof);
                     }
 
                     // break
@@ -199,7 +204,14 @@ impl VerkleTree {
         match node {
             Node::Extension { stem: node_stem, slots: ext_slots } => {
                 if *node_stem != stem {
-                    return None;
+                    proof.steps.push(calc_absence_extension(node, suf));
+                    return Some(proof);
+                }
+
+                if ext_slots[suf as usize].is_none() {
+                    // Return proof of absence
+                    proof.steps.push(calc_absence_extension(node, suf));
+                    return Some(proof);
                 }
 
                 let ext_c = recompute_commitment(node);
@@ -218,5 +230,28 @@ impl VerkleTree {
         }
 
         Some(proof)
+    }
+}
+
+// Helper function for calculating proof of absence
+fn calc_absence_internal(node: &Node, byte: u8) -> Step {
+    let parent = recompute_commitment(node);
+    let child_c = crate::vc::FakeCommitment(ZERO32);
+    let pi = FakeVC::open(&parent, byte, ZERO32);
+    Step::Internal {
+        parent_commit: parent,
+        index: byte,
+        child_commit: child_c,
+        proof: pi,
+    }
+}
+
+fn calc_absence_extension(node: &Node, byte: u8) -> Step {
+    let parent = recompute_commitment(node);
+    let pi = FakeVC::open(&parent, byte, ZERO32);
+    Step::Extension {
+        ext_commit: parent,
+        index: byte,
+        proof: pi,
     }
 }
