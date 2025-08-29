@@ -2,6 +2,7 @@ pub mod kzg;
 pub mod node;
 pub mod tree;
 pub mod vc;
+mod utils;
 
 pub use crate::kzg::KzgVc;
 pub use crate::node::Value;
