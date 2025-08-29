@@ -1,4 +1,7 @@
-use verkle::{VerkleTree, Value, vc::{verify_get, root_commitment}};
+use verkle::{
+    vc::{root_commitment, verify_get},
+    Value, VerkleTree,
+};
 
 fn key_from_bytes(stem: [u8; 31], suffix: u8) -> [u8; 32] {
     let mut k = [0u8; 32];

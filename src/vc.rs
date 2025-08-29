@@ -1,6 +1,9 @@
 use blake3::Hasher;
 
-use crate::{node::{split_key, Node}, VerkleTree};
+use crate::{
+    node::{split_key, Node},
+    VerkleTree,
+};
 
 pub const ARITY: usize = 256;
 
@@ -76,22 +79,22 @@ impl VectorCommitment for FakeVC {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerkleProof {
-    pub steps: Vec<Step>,        // Internal hops (0..=some depth) + the final Extension hop
-    pub value: Vec<u8>,          // claimed value (for inclusion)
+    pub steps: Vec<Step>, // Internal hops (0..=some depth) + the final Extension hop
+    pub value: Vec<u8>,   // claimed value (for inclusion)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Step {
     Internal {
         parent_commit: FakeCommitment,
-        index: u8,               // stem byte at this depth
+        index: u8, // stem byte at this depth
         child_commit: FakeCommitment,
-        proof: FakeProof,        // opening(parent, index, digest(child_commit))
+        proof: FakeProof, // opening(parent, index, digest(child_commit))
     },
     Extension {
         ext_commit: FakeCommitment,
-        index: u8,               // suffix
-        proof: FakeProof,        // opening(ext, index, digest(value))
+        index: u8,        // suffix
+        proof: FakeProof, // opening(ext, index, digest(value))
     },
 }
 
@@ -102,9 +105,13 @@ pub fn hash_bytes(input: &[u8]) -> [u8; 32] {
 
 const ZERO32: [u8; 32] = [0u8; 32];
 
-pub fn digest_value(bytes: &[u8]) -> [u8; 32] { hash_bytes(bytes) }
+pub fn digest_value(bytes: &[u8]) -> [u8; 32] {
+    hash_bytes(bytes)
+}
 
-pub fn digest_commitment<C: AsRef<[u8]>>(c: &C) -> [u8; 32] { hash_bytes(c.as_ref()) }
+pub fn digest_commitment<C: AsRef<[u8]>>(c: &C) -> [u8; 32] {
+    hash_bytes(c.as_ref())
+}
 
 // generic over VC; for now use FakeVC in the call sites
 pub(crate) fn recompute_commitment(node: &Node) -> FakeCommitment {
@@ -135,7 +142,7 @@ pub(crate) fn recompute_commitment(node: &Node) -> FakeCommitment {
     }
 }
 
-pub fn verify_get(root_commit: FakeCommitment, key: [u8;32], proof: &VerkleProof) -> bool {
+pub fn verify_get(root_commit: FakeCommitment, key: [u8; 32], proof: &VerkleProof) -> bool {
     let (stem, suf) = split_key(key);
     let mut cur = root_commit;
     let mut depth = 0;
@@ -143,11 +150,22 @@ pub fn verify_get(root_commit: FakeCommitment, key: [u8;32], proof: &VerkleProof
     // Internal hops
     for step in proof.steps.iter() {
         match step {
-            Step::Internal { parent_commit, index, child_commit, proof: pi } => {
-                if *parent_commit != cur { return false; }
-                if *index != stem[depth] { return false; }
+            Step::Internal {
+                parent_commit,
+                index,
+                child_commit,
+                proof: pi,
+            } => {
+                if *parent_commit != cur {
+                    return false;
+                }
+                if *index != stem[depth] {
+                    return false;
+                }
                 let target = digest_commitment(child_commit);
-                if !FakeVC::verify(parent_commit, *index, target, pi) { return false; }
+                if !FakeVC::verify(parent_commit, *index, target, pi) {
+                    return false;
+                }
                 cur = child_commit.clone();
                 depth += 1;
             }
@@ -162,12 +180,29 @@ pub fn verify_get(root_commit: FakeCommitment, key: [u8;32], proof: &VerkleProof
 
     // Final step must be Extension
     let last = proof.steps.last();
-    let Step::Extension { ext_commit, index, proof: pi } = (match last {
-        Some(Step::Extension { ext_commit, index, proof }) => Step::Extension { ext_commit: ext_commit.clone(), index: *index, proof: proof.clone() },
+    let Step::Extension {
+        ext_commit,
+        index,
+        proof: pi,
+    } = (match last {
+        Some(Step::Extension {
+            ext_commit,
+            index,
+            proof,
+        }) => Step::Extension {
+            ext_commit: ext_commit.clone(),
+            index: *index,
+            proof: proof.clone(),
+        },
         _ => return false,
-    }) else { unreachable!() };
+    })
+    else {
+        unreachable!()
+    };
 
-    if index != suf { return false; }
+    if index != suf {
+        return false;
+    }
     let target = digest_value(&proof.value);
     FakeVC::verify(&ext_commit, index, target, &pi)
 }

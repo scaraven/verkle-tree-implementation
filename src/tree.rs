@@ -1,5 +1,10 @@
 use crate::{
-    node::{split_extension, split_key, ExtensionNode, Node}, vc::{digest_commitment, digest_value, recompute_commitment, FakeVC, Step, VectorCommitment, VerkleProof}, Value
+    node::{split_extension, split_key, ExtensionNode, Node},
+    vc::{
+        digest_commitment, digest_value, recompute_commitment, FakeVC, Step, VectorCommitment,
+        VerkleProof,
+    },
+    Value,
 };
 
 pub struct VerkleTree {
@@ -184,8 +189,11 @@ impl VerkleTree {
                             node = child;
                         }
                     }
-                },
-                Node::Extension { stem: node_stem, slots: _ } => {
+                }
+                Node::Extension {
+                    stem: node_stem,
+                    slots: _,
+                } => {
                     if *node_stem != stem {
                         return None;
                     }
@@ -197,7 +205,10 @@ impl VerkleTree {
         }
 
         match node {
-            Node::Extension { stem: node_stem, slots: ext_slots } => {
+            Node::Extension {
+                stem: node_stem,
+                slots: ext_slots,
+            } => {
                 if *node_stem != stem {
                     return None;
                 }
@@ -213,7 +224,7 @@ impl VerkleTree {
                 });
 
                 proof.value = val.0.clone();
-            },
+            }
             _ => unreachable!("Expected extension node"),
         }
 

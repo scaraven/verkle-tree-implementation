@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use verkle::{VerkleTree, Value};
 use rand::{rngs::StdRng, Rng, SeedableRng};
+use std::collections::HashMap;
+use verkle::{Value, VerkleTree};
 
 fn key_from_bytes(stem: [u8; 31], suffix: u8) -> [u8; 32] {
     let mut k = [0u8; 32];
@@ -70,7 +70,9 @@ fn chaos_many_inserts_and_reads() {
     // --- Bucket 3: Stems that share a LONG prefix but diverge at various depths (exercise splits) ---
     // Build a base prefix and then vary a byte at different positions.
     let mut base = [0u8; 31];
-    for i in 0..31 { base[i] = 0xAA; } // common prefix
+    for i in 0..31 {
+        base[i] = 0xAA;
+    } // common prefix
     let divergence_points = [0usize, 5, 10, 15, 25, 30]; // include first and last byte divergences
     for &d in &divergence_points {
         let mut s1 = base;
@@ -113,7 +115,9 @@ fn chaos_many_inserts_and_reads() {
 
     // --- Verify everything reads back exactly ---
     for (k, v) in expected.iter() {
-        let got = t.get(*k).unwrap_or_else(|| panic!("missing key {:02X?}", k));
+        let got = t
+            .get(*k)
+            .unwrap_or_else(|| panic!("missing key {:02X?}", k));
         assert_eq!(&got.0, v, "mismatch for key {:02X?}", k);
     }
 
