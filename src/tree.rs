@@ -173,7 +173,7 @@ impl<V: VectorCommitment> VerkleTree<V> {
 
         let mut proof_vec: VerkleProof<V> = VerkleProof { steps: Vec::new(), value: None };
 
-        for (i, &byte) in stem.iter().enumerate() {
+        for (_, &byte) in stem.iter().enumerate() {
             let index = byte as usize;
             match node {
                 Node::Internal { children, commitments} => {
@@ -184,7 +184,7 @@ impl<V: VectorCommitment> VerkleTree<V> {
                     proof_vec.steps.push(
                         Step::Internal {
                             parent_commit: node_commit,
-                            index: i as u8,
+                            index: index,
                             child_digest,
                             proof,
                         }
@@ -203,7 +203,7 @@ impl<V: VectorCommitment> VerkleTree<V> {
                     let ext_commit = self.vc.commit_from_children(slot_commitment);
                     let (_, proof) = self.vc.open_at(&slot_commitment, index);
                     proof_vec.steps.push(
-                        Step::Extension { ext_commit, index: byte, proof }
+                        Step::Extension { ext_commit, index, proof }
                     );
                     proof_vec.value = Some(slots[suf as usize].clone().unwrap().0);
                     return Some(proof_vec);
@@ -216,7 +216,7 @@ impl<V: VectorCommitment> VerkleTree<V> {
                 let ext_commit = self.vc.commit_from_children(slot_commitment);
                 let (_, proof) = self.vc.open_at(&slot_commitment, suf as usize);
                 proof_vec.steps.push(
-                    Step::Extension { ext_commit, index: suf, proof }
+                    Step::Extension { ext_commit, index: suf as usize, proof }
                 );
                 proof_vec.value = Some(slots[suf as usize].clone().unwrap().0);
             }

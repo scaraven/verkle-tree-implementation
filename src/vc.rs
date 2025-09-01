@@ -1,7 +1,7 @@
 use ark_ff::PrimeField;
 use ark_serialize::CanonicalSerialize;
 
-use crate::{node::Node, utils::{digest_commit, hash_to_field, ZERO_CHILD, ZERO_VALUE}};
+use crate::{node::{Node, Stem, Suffix}, utils::{digest_commit, hash_to_field, ZERO_CHILD, ZERO_VALUE}, Value};
 
 pub const ARITY: usize = 256;
 pub const ZERO32: [u8; 32] = [0; 32];
@@ -43,13 +43,13 @@ pub struct VerkleProof<V: VectorCommitment> {
 pub enum Step<V: VectorCommitment> {
     Internal {
         parent_commit: V::Commitment,
-        index: u8, // stem byte at this depth
+        index: usize, // stem byte at this depth
         child_digest: V::Fr, // Digest of child value at index
         proof: V::Proof, // opening(parent, index, child_digest)
     },
     Extension {
         ext_commit: V::Commitment,
-        index: u8,        // suffix
+        index: usize,        // suffix
         proof: V::Proof, // opening(ext, index, digest(value))
     },
 }
@@ -101,4 +101,29 @@ pub(crate) fn compute_commitment<V: VectorCommitment>(vc: &V, node: &mut Node<V>
         Node::Internal { .. } => compute_internal_commitment(vc, node),
         Node::Extension { .. } => compute_extension_commitment(vc, node),
     }
+}
+
+pub fn verify_proof<V: VectorCommitment>(vc: &V, proof: &Option<VerkleProof<V>>, stem: Stem, suf: Suffix, value: Value) -> bool {
+    let proof = match proof.as_ref() {
+        None => return false,
+        Some(p) => p,
+    };
+
+    // Verify each step in the proof
+    for step in &proof.steps {
+        match step {
+            Step::Internal { parent_commit, index, child_digest, proof } => {
+                if !vc.verify_at(parent_commit, *index, *child_digest, proof) {
+                    return false;
+                }
+            }
+            Step::Extension { ext_commit, index, proof } => {
+                if !vc.verify_at(ext_commit, *index, hash_to_field::<V>(&value.0), proof) {
+                    return false;
+                }
+            }
+        }
+    }
+    // If all steps are valid, return true
+    true
 }
