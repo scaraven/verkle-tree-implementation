@@ -1,15 +1,19 @@
+use crate::vc::VectorCommitment;
+
 pub(crate) type Stem = [u8; 31];
 pub(crate) type Suffix = u8;
 
 pub struct Value(pub Vec<u8>);
 
-pub(crate) enum Node {
+pub(crate) enum Node<V: VectorCommitment> {
     Internal {
-        children: [Option<Box<Node>>; 256],
+        children: [Option<Box<Node<V>>>; 256],
+        commitment: Option<V::Commitment>
     },
     Extension {
         stem: Stem,
         slots: [Option<Value>; 256],
+        commitment: Option<V::Commitment>
     },
 }
 
@@ -28,7 +32,7 @@ pub struct ExtensionNode {
 
 /// Replaces an encountered Extension(old_ext) with an Internal subtree that forks at the first differing byte vs new_stem.
 /// Caller must pass the start_depth = number of stem bytes already consumed on the path to old_ext.
-pub(crate) fn split_extension(start_depth: usize, old_ext: ExtensionNode, new_stem: Stem) -> Node {
+pub(crate) fn split_extension<V: VectorCommitment>(start_depth: usize, old_ext: ExtensionNode, new_stem: Stem) -> Node<V> {
     let old_stem = old_ext.stem;
     // Get first index where the stems differ
     let d = first_diff_index(old_stem, new_stem);
@@ -41,6 +45,7 @@ pub(crate) fn split_extension(start_depth: usize, old_ext: ExtensionNode, new_st
 
     let mut node = Node::Internal {
         children: std::array::from_fn(|_| None),
+        commitment: None,
     };
     let mut cur = &mut node;
 
@@ -52,10 +57,11 @@ pub(crate) fn split_extension(start_depth: usize, old_ext: ExtensionNode, new_st
     // Create a node with internals till stems differ
     for i in start_depth..d {
         match cur {
-            Node::Internal { children } => {
+            Node::Internal { children , commitment: _} => {
                 let idx = old_stem[i] as usize;
                 children[idx] = Some(Box::new(Node::Internal {
                     children: std::array::from_fn(|_| None),
+                    commitment: None,
                 }));
                 cur = children[idx].as_deref_mut().unwrap();
             }
@@ -65,17 +71,19 @@ pub(crate) fn split_extension(start_depth: usize, old_ext: ExtensionNode, new_st
 
     // Once we have reached the first difference, we can now create two extension nodes
     match cur {
-        Node::Internal { children } => {
+        Node::Internal { children , commitment: _} => {
             let old_idx = old_stem[d] as usize;
             let new_idx = new_stem[d] as usize;
 
             children[old_idx] = Some(Box::new(Node::Extension {
                 stem: old_stem,
                 slots: old_ext.slots,
+                commitment: None,
             }));
             children[new_idx] = Some(Box::new(Node::Extension {
                 stem: new_stem,
                 slots: std::array::from_fn(|_| None),
+                commitment: None,
             }));
         }
         Node::Extension { .. } => unreachable!("Unexpected Extension node while splitting"),

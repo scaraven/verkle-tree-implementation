@@ -1,4 +1,4 @@
-use verkle::{Value, VerkleTree};
+use verkle::{KzgVc, Value, VerkleTree};
 
 fn key_from_bytes(stem: [u8; 31], suffix: u8) -> [u8; 32] {
     let mut k = [0u8; 32];
@@ -9,7 +9,7 @@ fn key_from_bytes(stem: [u8; 31], suffix: u8) -> [u8; 32] {
 
 #[test]
 fn stems_differ_only_at_last_byte_both_present() {
-    let mut t = VerkleTree::new();
+    let mut t = VerkleTree::<KzgVc>::new();
 
     // identical for first 30 bytes, differ at byte 30
     let mut s1 = [0u8; 31];

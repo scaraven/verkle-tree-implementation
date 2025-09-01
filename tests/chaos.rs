@@ -1,6 +1,6 @@
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::HashMap;
-use verkle::{Value, VerkleTree};
+use verkle::{KzgVc, Value, VerkleTree};
 
 fn key_from_bytes(stem: [u8; 31], suffix: u8) -> [u8; 32] {
     let mut k = [0u8; 32];
@@ -17,7 +17,7 @@ fn stem_repeat(b: u8) -> [u8; 31] {
 
 #[test]
 fn get_non_existent_key_returns_none() {
-    let mut t = VerkleTree::new();
+    let mut t = VerkleTree::<KzgVc>::new();
 
     // Insert one key
     let stem = stem_repeat(0xAB);
@@ -39,7 +39,7 @@ fn chaos_many_inserts_and_reads() {
     // Deterministic RNG so failures are reproducible.
     let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
 
-    let mut t = VerkleTree::new();
+    let mut t = VerkleTree::<KzgVc>::new();
     let mut expected: HashMap<[u8; 32], Vec<u8>> = HashMap::new();
 
     // --- Bucket 1: Many keys sharing ONE stem (maximal intersection) ---
