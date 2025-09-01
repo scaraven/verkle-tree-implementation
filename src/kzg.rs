@@ -6,6 +6,7 @@ use crate::{utils::evals_to_poly, vc::{VectorCommitment, ARITY}};
 
 type KZG = KZG10::<Bls12_381, DensePolynomial<Fr>>;
 
+#[derive(Clone)]
 pub struct KzgVc<'a> {
     domain: Domain<Fr>,            // size ARITY, fixed points {ω^i}
     powers: Powers<'a, Bls12_381>, // trimmed prover key up to degree < ARITY

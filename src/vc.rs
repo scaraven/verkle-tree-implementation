@@ -1,7 +1,7 @@
 use ark_ff::PrimeField;
 use ark_serialize::CanonicalSerialize;
 
-use crate::{node::{Node, Stem, Suffix}, utils::{digest_commit, hash_to_field, ZERO_CHILD, ZERO_VALUE}, Value};
+use crate::{node::{split_key, Node}, utils::{digest_commit, hash_to_field, ZERO_CHILD, ZERO_VALUE}};
 
 pub const ARITY: usize = 256;
 pub const ZERO32: [u8; 32] = [0; 32];
@@ -36,7 +36,7 @@ pub trait VectorCommitment {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerkleProof<V: VectorCommitment> {
     pub steps: Vec<Step<V>>, // Internal hops (0..=some depth) + the final Extension hop
-    pub value: Option<Vec<u8>>,       // claimed value (for inclusion)
+    pub value: Vec<u8>,       // claimed value (for inclusion)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -103,22 +103,45 @@ pub(crate) fn compute_commitment<V: VectorCommitment>(vc: &V, node: &mut Node<V>
     }
 }
 
-pub fn verify_proof<V: VectorCommitment>(vc: &V, proof: &Option<VerkleProof<V>>, stem: Stem, suf: Suffix, value: Value) -> bool {
-    let proof = match proof.as_ref() {
-        None => return false,
-        Some(p) => p,
-    };
+pub fn verify_proof<V: VectorCommitment>(vc: &V, proof: &VerkleProof<V>, key: [u8; 32]) -> bool {
+    let (stem, suf) = split_key(key);
+    let value = &proof.value;
+
+    if !proof.steps.is_empty() {
+        return false;
+    }
+
+    if proof.steps.len() >= stem.len() + 1 {
+        return false; // Too many steps
+    }
+
+    let prev_digest = match proof.steps[0] {
+            Step::Internal { child_digest, .. } => child_digest,
+            Step::Extension { .. } => hash_to_field::<V>(&value),
+        };
 
     // Verify each step in the proof
-    for step in &proof.steps {
+    for (i, step) in proof.steps.iter().enumerate() {
+        if i > 0 && !check_parent_child_commits(prev_digest, step) {
+            return false;
+        }
+
         match step {
             Step::Internal { parent_commit, index, child_digest, proof } => {
                 if !vc.verify_at(parent_commit, *index, *child_digest, proof) {
                     return false;
+                } else if *index != stem[i] as usize {
+                    return false; // Stem index mismatch
+                } else if i == stem.len() {
+                    return false; // Should not have internal nodes after stem is done
                 }
             }
             Step::Extension { ext_commit, index, proof } => {
-                if !vc.verify_at(ext_commit, *index, hash_to_field::<V>(&value.0), proof) {
+                if *index != suf as usize {
+                    return false; // Suffix index mismatch
+                }
+
+                if !vc.verify_at(ext_commit, *index, hash_to_field::<V>(&value), proof) {
                     return false;
                 }
             }
@@ -126,4 +149,15 @@ pub fn verify_proof<V: VectorCommitment>(vc: &V, proof: &Option<VerkleProof<V>>,
     }
     // If all steps are valid, return true
     true
+}
+
+// Ensures that digest(commit) == parent.child_digest
+fn check_parent_child_commits<V: VectorCommitment>(prev_digest: V::Fr, step: &Step<V>) -> bool {
+    let commit = match step {
+        Step::Internal { parent_commit, .. } => parent_commit,
+        Step::Extension { ext_commit, .. } => ext_commit,
+    };
+
+    let computed_digest = digest_commit::<V>(&commit);
+    computed_digest == prev_digest
 }

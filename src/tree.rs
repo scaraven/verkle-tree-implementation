@@ -171,7 +171,7 @@ impl<V: VectorCommitment> VerkleTree<V> {
             Some(ref n) => n,
         };
 
-        let mut proof_vec: VerkleProof<V> = VerkleProof { steps: Vec::new(), value: None };
+        let mut proof_vec: VerkleProof<V> = VerkleProof { steps: Vec::new(), value: Vec::new() };
 
         for (_, &byte) in stem.iter().enumerate() {
             let index = byte as usize;
@@ -205,7 +205,7 @@ impl<V: VectorCommitment> VerkleTree<V> {
                     proof_vec.steps.push(
                         Step::Extension { ext_commit, index, proof }
                     );
-                    proof_vec.value = Some(slots[suf as usize].clone().unwrap().0);
+                    proof_vec.value = slots[suf as usize].clone().unwrap().0;
                     return Some(proof_vec);
                 }
             }
@@ -218,7 +218,7 @@ impl<V: VectorCommitment> VerkleTree<V> {
                 proof_vec.steps.push(
                     Step::Extension { ext_commit, index: suf as usize, proof }
                 );
-                proof_vec.value = Some(slots[suf as usize].clone().unwrap().0);
+                proof_vec.value = slots[suf as usize].clone().unwrap().0;
             }
             _ => unreachable!("unexpected node at depth 31"),
         }
