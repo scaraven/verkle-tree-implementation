@@ -17,7 +17,9 @@ fn stem_repeat(b: u8) -> [u8; 31] {
 
 #[test]
 fn get_non_existent_key_returns_none() {
-    let mut t = VerkleTree::<KzgVc>::new();
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
+    let mut t = VerkleTree::<KzgVc>::new(kzg);
 
     // Insert one key
     let stem = stem_repeat(0xAB);
@@ -38,8 +40,9 @@ fn get_non_existent_key_returns_none() {
 fn chaos_many_inserts_and_reads() {
     // Deterministic RNG so failures are reproducible.
     let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
 
-    let mut t = VerkleTree::<KzgVc>::new();
+    let mut t = VerkleTree::<KzgVc>::new(kzg);
     let mut expected: HashMap<[u8; 32], Vec<u8>> = HashMap::new();
 
     // --- Bucket 1: Many keys sharing ONE stem (maximal intersection) ---

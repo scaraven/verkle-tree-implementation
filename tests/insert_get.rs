@@ -1,3 +1,4 @@
+use rand::{rngs::StdRng, SeedableRng};
 use verkle::{KzgVc, Value, VerkleTree};
 
 fn key_from_bytes(stem: [u8; 31], suffix: u8) -> [u8; 32] {
@@ -15,7 +16,9 @@ fn stem_repeat(b: u8) -> [u8; 31] {
 
 #[test]
 fn insert_then_get_single() {
-    let mut t = VerkleTree::<KzgVc>::new();
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
+    let mut t = VerkleTree::<KzgVc>::new(kzg);
 
     let stem = stem_repeat(0xAB);
     let k = key_from_bytes(stem, 0x01);
@@ -28,7 +31,9 @@ fn insert_then_get_single() {
 
 #[test]
 fn insert_shared_stem_two_suffixes() {
-    let mut t = VerkleTree::<KzgVc>::new();
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
+    let mut t = VerkleTree::<KzgVc>::new(kzg);
 
     let stem = stem_repeat(0x42);
     let k0 = key_from_bytes(stem, 0x00);
@@ -45,7 +50,9 @@ fn insert_shared_stem_two_suffixes() {
 fn split_at_root_two_different_stems() {
     // First insert makes the root an Extension; second insert with a different stem
     // should trigger a split at depth 0 and both keys must be retrievable.
-    let mut t = VerkleTree::<KzgVc>::new();
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
+    let mut t = VerkleTree::<KzgVc>::new(kzg);
 
     let s1 = stem_repeat(0x11);
     let s2 = stem_repeat(0x22);
@@ -63,7 +70,9 @@ fn split_at_root_two_different_stems() {
 #[test]
 fn split_deep_divergence_both_retrievable() {
     // Construct two stems that match for the first 25 bytes and differ at byte 25.
-    let mut t = VerkleTree::<KzgVc>::new();
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
+    let mut t = VerkleTree::<KzgVc>::new(kzg);
 
     let mut s1 = [0u8; 31];
     let mut s2 = [0u8; 31];
@@ -90,7 +99,9 @@ fn split_deep_divergence_both_retrievable() {
 #[test]
 fn same_stem_multiple_writes_overwrite_slot() {
     // Inserting twice into the same (stem, suffix) should replace the value.
-    let mut t = VerkleTree::<KzgVc>::new();
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
+    let mut t = VerkleTree::<KzgVc>::new(kzg);
 
     let stem = stem_repeat(0x77);
     let k = key_from_bytes(stem, 0x2A);
@@ -104,7 +115,9 @@ fn same_stem_multiple_writes_overwrite_slot() {
 
 #[test]
 fn different_suffixes_same_stem_do_not_clobber_each_other() {
-    let mut t = VerkleTree::<KzgVc>::new();
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
+    let mut t = VerkleTree::<KzgVc>::new(kzg);
 
     let stem = stem_repeat(0x33);
     let k_a = key_from_bytes(stem, 0x0A);

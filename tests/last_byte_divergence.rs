@@ -1,3 +1,4 @@
+use rand::{rngs::StdRng, SeedableRng};
 use verkle::{KzgVc, Value, VerkleTree};
 
 fn key_from_bytes(stem: [u8; 31], suffix: u8) -> [u8; 32] {
@@ -9,7 +10,9 @@ fn key_from_bytes(stem: [u8; 31], suffix: u8) -> [u8; 32] {
 
 #[test]
 fn stems_differ_only_at_last_byte_both_present() {
-    let mut t = VerkleTree::<KzgVc>::new();
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
+    let mut t = VerkleTree::<KzgVc>::new(kzg);
 
     // identical for first 30 bytes, differ at byte 30
     let mut s1 = [0u8; 31];

@@ -1,10 +1,15 @@
+use ark_ff::PrimeField;
+use ark_serialize::CanonicalSerialize;
+
+use crate::{node::Node, utils::{digest_commit, hash_to_field, ZERO_CHILD, ZERO_VALUE}};
+
 pub const ARITY: usize = 256;
 pub const ZERO32: [u8; 32] = [0; 32];
 
 /// VC interface
 pub trait VectorCommitment {
-    type Fr;
-    type Commitment: PartialEq + Eq + Clone + std::fmt::Debug;
+    type Fr: PrimeField;
+    type Commitment: PartialEq + Eq + Clone + std::fmt::Debug + CanonicalSerialize;
     type Proof: Clone + std::fmt::Debug + PartialEq + Eq;
 
     // Typically constructed with an SRS and fixed domain elsewhere.
@@ -17,7 +22,7 @@ pub trait VectorCommitment {
         &self,
         children: &[Self::Fr; ARITY],
         index: usize,
-    ) -> (/*value_digest*/ Self::Fr, Self::Proof);
+    ) -> (Self::Fr, Self::Proof);
 
     fn verify_at(
         &self,
@@ -31,7 +36,7 @@ pub trait VectorCommitment {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerkleProof<V: VectorCommitment> {
     pub steps: Vec<Step<V>>, // Internal hops (0..=some depth) + the final Extension hop
-    pub value: Vec<u8>,       // claimed value (for inclusion)
+    pub value: Option<Vec<u8>>,       // claimed value (for inclusion)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,12 +44,61 @@ pub enum Step<V: VectorCommitment> {
     Internal {
         parent_commit: V::Commitment,
         index: u8, // stem byte at this depth
-        child_commit: V::Commitment,
-        proof: V::Proof, // opening(parent, index, digest(child_commit))
+        child_digest: V::Fr, // Digest of child value at index
+        proof: V::Proof, // opening(parent, index, child_digest)
     },
     Extension {
         ext_commit: V::Commitment,
         index: u8,        // suffix
         proof: V::Proof, // opening(ext, index, digest(value))
     },
+}
+
+fn compute_internal_commitment<V: VectorCommitment>(vc: &V, node: &mut Node<V>) -> V::Commitment {
+    match node {
+        Node::Internal { children, commitments } => {
+            let mut child_digests: [V::Fr; ARITY] = std::array::from_fn(|_| ZERO_CHILD::<V>());
+            for (i, child_opt) in children.iter_mut().enumerate() {
+                if let Some(child) = child_opt.as_deref_mut() {
+                    // recurse to ensure children's commitments arrays are also populated
+                    let child_commit = compute_commitment::<V>(vc, child);
+                    let digest = digest_commit::<V>(&child_commit);
+                    child_digests[i] = digest;
+                } else {
+                    child_digests[i] = ZERO_CHILD::<V>();
+                }
+            }
+            let commit = vc.commit_from_children(&child_digests);
+            *commitments = child_digests;
+            commit
+        }
+        _ => unreachable!("compute_internal_commitment called on non-internal node"),
+    }
+}
+
+fn compute_extension_commitment<V: VectorCommitment>(vc: &V, node: &mut Node<V>) -> V::Commitment {
+    match node {
+        Node::Extension { slots, slot_commitment, .. } => {
+            let mut value_digests: [V::Fr; ARITY] = std::array::from_fn(|_| ZERO_VALUE::<V>());
+            for (i, slot_opt) in slots.iter().enumerate() {
+                if let Some(value) = slot_opt {
+                    let digest = hash_to_field::<V>(&value.0);
+                    value_digests[i] = digest;
+                } else {
+                    value_digests[i] = ZERO_VALUE::<V>();
+                }
+            }
+            let commit = vc.commit_from_children(&value_digests);
+            *slot_commitment = value_digests;
+            commit
+        }
+        _ => unreachable!("compute_extension_commitment called on non-extension node"),
+    }
+}
+
+pub(crate) fn compute_commitment<V: VectorCommitment>(vc: &V, node: &mut Node<V>) -> V::Commitment {
+    match node {
+        Node::Internal { .. } => compute_internal_commitment(vc, node),
+        Node::Extension { .. } => compute_extension_commitment(vc, node),
+    }
 }

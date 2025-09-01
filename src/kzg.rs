@@ -13,7 +13,7 @@ pub struct KzgVc<'a> {
 }
 
 impl<'a> KzgVc<'a> {
-    fn setup(rng: &mut impl rand::RngCore) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn setup(rng: &mut impl rand::RngCore) -> Result<Self, Box<dyn std::error::Error>> {
         assert!(ARITY.is_power_of_two(), "use a radix-2 domain for simplicity");
         let domain = Domain::<Fr>::new(ARITY).expect("domain");
         // KZG universal setup for degree < k
@@ -52,7 +52,7 @@ impl<'a> VectorCommitment for KzgVc<'a> {
 
     fn commit_from_children(&self, children: &[Self::Fr; ARITY]) -> Self::Commitment {
         // Calculate coefficients
-        let poly = evals_to_poly(&self.domain, children);
+        let poly = evals_to_poly::<Self>(&self.domain, children);
 
         // Evaluate poly at the appropriate points
         let (comm, _rand) = KZG::commit(&self.powers, &poly, None, None)
@@ -62,7 +62,7 @@ impl<'a> VectorCommitment for KzgVc<'a> {
     }
 
    fn open_at(&self, evals: &[Self::Fr; ARITY], index: usize) -> (Self::Fr, Self::Proof) {
-       let poly = evals_to_poly(&self.domain, evals);
+       let poly = evals_to_poly::<Self>(&self.domain, evals);
        let point = self.domain.element(index);
        let value = poly.evaluate(&point);
 
