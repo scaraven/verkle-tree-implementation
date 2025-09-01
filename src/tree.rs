@@ -3,30 +3,30 @@ use crate::{
 };
 
 pub struct VerkleTree<V: VectorCommitment> {
-    pub(crate) root: Option<Node<V>>,
+    pub(crate) root: Option<Node>,
+    _marker: std::marker::PhantomData<V>,
 }
 
 impl<V: VectorCommitment> VerkleTree<V> {
     pub fn new() -> Self {
-        VerkleTree { root: None }
+        VerkleTree { root: None, _marker: std::marker::PhantomData }
     }
 
     pub fn get(&self, key: [u8; 32]) -> Option<&Value> {
         let (stem, suf) = split_key(key);
 
-        let mut node: Option<&Node<V>> = self.root.as_ref();
+        let mut node: Option<&Node> = self.root.as_ref();
 
         for i in 0..31 {
             match node {
                 None => return None,
-                Some(Node::Internal { children , commitment: _}) => {
+                Some(Node::Internal { children}) => {
                     let idx = stem[i] as usize;
                     node = children[idx].as_deref();
                 }
                 Some(Node::Extension {
                     stem: node_stem,
                     slots,
-                    commitment: _,
                 }) => {
                     if *node_stem != stem {
                         return None;
@@ -40,7 +40,6 @@ impl<V: VectorCommitment> VerkleTree<V> {
         if let Some(Node::Extension {
             stem: node_stem,
             slots: node_slots,
-            commitment: _,
         }) = node
         {
             if *node_stem == stem {
@@ -51,13 +50,18 @@ impl<V: VectorCommitment> VerkleTree<V> {
         None
     }
 
+    fn create_root(&mut self, key: [u8; 32], value: Value) {
+        let (stem, suf) = split_key(key);
+        let mut slots: [Option<Value>; 256] = std::array::from_fn(|_| None);
+        slots[suf as usize] = Some(value);
+        self.root = Some(Node::Extension { stem, slots });
+    }
+
     pub fn insert(&mut self, key: [u8; 32], value: Value) {
         let (stem, suf) = split_key(key);
 
         if self.root.is_none() {
-            let mut slots: [Option<Value>; 256] = std::array::from_fn(|_| None);
-            slots[suf as usize] = Some(value);
-            self.root = Some(Node::Extension { stem, slots, commitment: None });
+            self.create_root(key, value);
             return;
         }
 
@@ -65,13 +69,13 @@ impl<V: VectorCommitment> VerkleTree<V> {
 
         for i in 0..31 {
             match node {
-                Node::Internal { children , commitment: _} => {
+                Node::Internal { children } => {
                     let idx = stem[i] as usize;
                     if children[idx].is_none() {
                         // Create a new extension node here
                         let mut slots: [Option<Value>; 256] = std::array::from_fn(|_| None);
                         slots[suf as usize] = Some(value);
-                        children[idx] = Some(Box::new(Node::Extension { stem, slots, commitment: None }));
+                        children[idx] = Some(Box::new(Node::Extension { stem, slots }));
                         return;
                     } else {
                         // We iterate through
@@ -81,7 +85,6 @@ impl<V: VectorCommitment> VerkleTree<V> {
                 Node::Extension {
                     stem: node_stem,
                     slots,
-                    commitment: _,
                 } => {
                     if *node_stem != stem {
                         let old_slots = std::mem::replace(slots, std::array::from_fn(|_| None));
@@ -93,7 +96,7 @@ impl<V: VectorCommitment> VerkleTree<V> {
                         *node = split_extension(i, old_node, stem);
                         // Advance search, so that we consume byte
                         match node {
-                            Node::Internal { children , commitment: _} => {
+                            Node::Internal { children } => {
                                 let idx = stem[i] as usize;
                                 node = children[idx].as_deref_mut().unwrap();
                             }
@@ -113,20 +116,18 @@ impl<V: VectorCommitment> VerkleTree<V> {
             Node::Extension {
                 stem: node_stem,
                 slots,
-                commitment: _,
             } if *node_stem == stem => {
                 slots[suf as usize] = Some(value);
                 return;
             }
 
             // The Extension is the child of this Internal (common shape)
-            Node::Internal { children , commitment: _,} => {
+            Node::Internal { children } => {
                 let idx = stem[30] as usize;
                 match children[idx].as_deref_mut() {
                     Some(Node::Extension {
                         stem: node_stem,
                         slots,
-                        commitment: _,
                     }) if *node_stem == stem => {
                         slots[suf as usize] = Some(value);
                         return;
@@ -138,7 +139,6 @@ impl<V: VectorCommitment> VerkleTree<V> {
                         children[idx] = Some(Box::new(Node::Extension {
                             stem,
                             slots: slots_arr,
-                            commitment: None,
                         }));
                         return;
                     }
