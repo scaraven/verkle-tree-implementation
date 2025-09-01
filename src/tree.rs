@@ -64,7 +64,6 @@ impl<V: VectorCommitment> VerkleTree<V> {
 
         if self.root.is_none() {
             self.create_root(key, value);
-            compute_commitment(&self.vc, self.root.as_mut().unwrap());
             return;
         }
 
@@ -79,7 +78,6 @@ impl<V: VectorCommitment> VerkleTree<V> {
                         let mut slots: [Option<Value>; 256] = std::array::from_fn(|_| None);
                         slots[suf as usize] = Some(value);
                         children[idx] = Some(Box::new(Node::Extension { stem, slots, slot_commitment: std::array::from_fn(|_| ZERO_VALUE::<V>())}));
-                        compute_commitment(&self.vc, self.root.as_mut().unwrap());
                         return;
                     } else {
                         // We iterate through
@@ -110,7 +108,6 @@ impl<V: VectorCommitment> VerkleTree<V> {
                     } else {
                         // If the stems match, we can just insert the value
                         slots[suf as usize] = Some(value);
-                        compute_commitment(&self.vc, self.root.as_mut().unwrap());
                         return;
                     }
                 }
@@ -125,7 +122,6 @@ impl<V: VectorCommitment> VerkleTree<V> {
                 slot_commitment: _,
             } if *node_stem == stem => {
                 slots[suf as usize] = Some(value);
-                compute_commitment(&self.vc, self.root.as_mut().unwrap());
                 return;
             }
 
@@ -139,7 +135,6 @@ impl<V: VectorCommitment> VerkleTree<V> {
                         slot_commitment: _,
                     }) if *node_stem == stem => {
                         slots[suf as usize] = Some(value);
-                        compute_commitment(&self.vc, self.root.as_mut().unwrap());
                         return;
                     }
                     None => {
@@ -151,7 +146,6 @@ impl<V: VectorCommitment> VerkleTree<V> {
                             slots: slots_arr,
                             slot_commitment: std::array::from_fn(|_| ZERO_VALUE::<V>()),
                         }));
-                        compute_commitment(&self.vc, self.root.as_mut().unwrap());
                         return;
                     }
                     _ => unreachable!("invalid shape at depth 31"),
@@ -163,12 +157,17 @@ impl<V: VectorCommitment> VerkleTree<V> {
         }
     }
 
-    pub fn prove_get(&self, key: [u8; 32]) -> Option<VerkleProof<V>> {
+    pub fn prove_get(&mut self, key: [u8; 32]) -> Option<VerkleProof<V>> {
         let (stem, suf) = split_key(key);
 
-        let mut node = match self.root {
+        match self.root {
             None => return None,
+            Some(ref mut n) => compute_commitment(&self.vc, n),
+        };
+
+        let mut node = match self.root {
             Some(ref n) => n,
+            None => return None,
         };
 
         let mut proof_vec: VerkleProof<V> = VerkleProof { steps: Vec::new(), value: Vec::new() };
@@ -203,7 +202,7 @@ impl<V: VectorCommitment> VerkleTree<V> {
                     let ext_commit = self.vc.commit_from_children(slot_commitment);
                     let (_, proof) = self.vc.open_at(&slot_commitment, index);
                     proof_vec.steps.push(
-                        Step::Extension { ext_commit, index, proof }
+                        Step::Extension { ext_commit, index: suf as usize, proof }
                     );
                     proof_vec.value = slots[suf as usize].clone().unwrap().0;
                     return Some(proof_vec);

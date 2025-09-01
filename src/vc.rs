@@ -107,7 +107,7 @@ pub fn verify_proof<V: VectorCommitment>(vc: &V, proof: &VerkleProof<V>, key: [u
     let (stem, suf) = split_key(key);
     let value = &proof.value;
 
-    if !proof.steps.is_empty() {
+    if proof.steps.is_empty() {
         return false;
     }
 

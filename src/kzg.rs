@@ -22,7 +22,7 @@ impl<'a> KzgVc<'a> {
         let srs: UniversalParams<Bls12_381> =
            KZG::setup(max_degree, false, rng)?;
 
-        let powers_of_g = srs.powers_of_g[..=ARITY].to_vec();
+        let powers_of_g = srs.powers_of_g[..ARITY].to_vec();
         let powers_of_gamma_g = (0..=ARITY).map(|i| srs.powers_of_gamma_g[&i]).collect();
 
         let powers = Powers {
