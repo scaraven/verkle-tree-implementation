@@ -33,7 +33,7 @@ pub struct ExtensionNode {
 
 /// Replaces an encountered Extension(old_ext) with an Internal subtree that forks at the first differing byte vs new_stem.
 /// Caller must pass the start_depth = number of stem bytes already consumed on the path to old_ext.
-pub(crate) fn split_extension<V: VectorCommitment>(start_depth: usize, old_ext: ExtensionNode, new_stem: Stem) -> Node<V> {
+pub(crate) fn split_extension<V: VectorCommitment>(start_depth: usize, old_ext: ExtensionNode, new_stem: Stem, suf: Suffix, value: Value) -> Node<V> {
     let old_stem = old_ext.stem;
     // Get first index where the stems differ
     let d = first_diff_index(old_stem, new_stem);
@@ -81,11 +81,15 @@ pub(crate) fn split_extension<V: VectorCommitment>(start_depth: usize, old_ext: 
                 slots: old_ext.slots,
                 slot_commitment: std::array::from_fn(|_| ZERO_VALUE::<V>()),
             }));
+
+            let mut new_slots: [Option<Value>; 256] = std::array::from_fn(|_| None);
+            new_slots[suf as usize] = Some(value);
             children[new_idx] = Some(Box::new(Node::Extension {
                 stem: new_stem,
-                slots: std::array::from_fn(|_| None),
+                slots: new_slots,
                 slot_commitment: std::array::from_fn(|_| ZERO_VALUE::<V>()),
             }));
+
         }
         Node::Extension { .. } => unreachable!("Unexpected Extension node while splitting"),
     }

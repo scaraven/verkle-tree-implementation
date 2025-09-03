@@ -24,8 +24,10 @@ fn verify_single_key() {
     let value = Value(vec![3, 4, 5]);
     tree.insert(key, value);
 
+    let root = tree.commit();
+
     let proof = tree.prove_get(key).unwrap();
-    assert!(verify_proof(&kzg, &proof, key));
+    assert!(verify_proof(&kzg, &root, &proof, key));
 }
 
 #[test]
@@ -37,9 +39,11 @@ fn fail_incorrect_proof() {
     let value = Value(vec![3, 4, 5]);
     tree.insert(key, value);
 
+    let root = tree.commit(); 
+
     let mut proof = tree.prove_get(key).unwrap();
     proof.value[0] = 99; // Corrupt proof
-    assert!(!verify_proof(&kzg, &proof, key));
+    assert!(!verify_proof(&kzg, &root, &proof, key));
 }
 
 #[test]
@@ -55,11 +59,13 @@ fn verify_sibling_keys() {
     let value2 = Value(vec![6, 7, 8]);
     tree.insert(key2, value2);
 
+    let root = tree.commit();
+
     let proof1 = tree.prove_get(key1).unwrap();
     let proof2 = tree.prove_get(key2).unwrap();
 
-    assert!(verify_proof(&kzg, &proof1, key1));
-    assert!(verify_proof(&kzg, &proof2, key2));
+    assert!(verify_proof(&kzg, &root, &proof1, key1));
+    assert!(verify_proof(&kzg, &root, &proof2, key2));
 }
 
 #[test]
@@ -76,11 +82,13 @@ fn verify_early_extension() {
     let value2 = Value(vec![6, 7, 8]);
     tree.insert(key2, value2);
 
+    let root = tree.commit();
+
     let proof1 = tree.prove_get(key1).unwrap();
     let proof2 = tree.prove_get(key2).unwrap();
 
-    assert!(verify_proof(&kzg, &proof1, key1));
-    assert!(verify_proof(&kzg, &proof2, key2));
+    assert!(verify_proof(&kzg, &root, &proof1, key1));
+    assert!(verify_proof(&kzg, &root, &proof2, key2));
 }
 
 #[test]
@@ -92,9 +100,11 @@ fn verify_incorrect_length_proof() {
     let value = Value(vec![3, 4, 5]);
     tree.insert(key, value);
 
+    let root = tree.commit();
+
     let proof = tree.prove_get(key).unwrap();
     let mut incorrect_proof = proof.clone();
     incorrect_proof.steps.push(proof.steps[0].clone()); // Add an extra step to make it invalid length
 
-    assert!(!verify_proof(&kzg, &incorrect_proof, key));
+    assert!(!verify_proof(&kzg, &root, &incorrect_proof, key));
 }

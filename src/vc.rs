@@ -9,7 +9,7 @@ pub const ZERO32: [u8; 32] = [0; 32];
 /// VC interface
 pub trait VectorCommitment {
     type Fr: PrimeField;
-    type Commitment: PartialEq + Eq + Clone + std::fmt::Debug + CanonicalSerialize;
+    type Commitment: Default + PartialEq + Eq + Clone + std::fmt::Debug + CanonicalSerialize;
     type Proof: Clone + std::fmt::Debug + PartialEq + Eq;
 
     // Typically constructed with an SRS and fixed domain elsewhere.
@@ -103,7 +103,7 @@ pub(crate) fn compute_commitment<V: VectorCommitment>(vc: &V, node: &mut Node<V>
     }
 }
 
-pub fn verify_proof<V: VectorCommitment>(vc: &V, proof: &VerkleProof<V>, key: [u8; 32]) -> bool {
+pub fn verify_proof<V: VectorCommitment>(vc: &V, root_commit: &V::Commitment, proof: &VerkleProof<V>, key: [u8; 32]) -> bool {
     let (stem, suf) = split_key(key);
     let value = &proof.value;
 
@@ -126,8 +126,11 @@ pub fn verify_proof<V: VectorCommitment>(vc: &V, proof: &VerkleProof<V>, key: [u
             return false;
         }
 
+        let commit: &V::Commitment;
+
         match step {
             Step::Internal { parent_commit, index, child_digest, proof } => {
+                commit = parent_commit;
                 if !vc.verify_at(parent_commit, *index, *child_digest, proof) {
                     return false;
                 } else if *index != stem[i] as usize {
@@ -137,6 +140,7 @@ pub fn verify_proof<V: VectorCommitment>(vc: &V, proof: &VerkleProof<V>, key: [u
                 }
             }
             Step::Extension { ext_commit, index, proof } => {
+                commit = ext_commit;
                 if *index != suf as usize {
                     return false; // Suffix index mismatch
                 }
@@ -145,6 +149,10 @@ pub fn verify_proof<V: VectorCommitment>(vc: &V, proof: &VerkleProof<V>, key: [u
                     return false;
                 }
             }
+        }
+
+        if i == 0 && commit != root_commit {
+            return false; // Root commitment mismatch
         }
     }
     // If all steps are valid, return true

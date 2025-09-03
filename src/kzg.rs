@@ -82,3 +82,28 @@ impl<'a> VectorCommitment for KzgVc<'a> {
         KZG::check(&self.vk, comm, point, value, proof).expect("verification")
     }
 }
+
+#[cfg(test)]
+mod test {
+    use ark_ff::UniformRand;
+
+    use super::*;
+
+    #[test]
+    fn test_kzg_vc() {
+        let mut rng = rand::thread_rng();
+        let kzg_vc = KzgVc::setup(&mut rng).expect("setup");
+
+        // Test commitment
+        let children = [Fr::rand(&mut rng); ARITY];
+        let comm = kzg_vc.commit_from_children(&children);
+
+        // Test opening
+        for (i, child) in children.iter().enumerate() {
+            let (value, proof) = kzg_vc.open_at(&children, i);
+            let is_valid = kzg_vc.verify_at(&comm, 0, value, &proof);
+            assert!(is_valid);
+            assert_eq!(&value, child);
+        }
+    }
+}

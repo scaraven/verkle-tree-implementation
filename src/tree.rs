@@ -1,5 +1,5 @@
 use crate::{
-    node::{split_extension, split_key, ExtensionNode, Node}, utils::ZERO_VALUE, vc::{compute_commitment, Step, VectorCommitment, VerkleProof}, Value
+    node::{split_extension, split_key, ExtensionNode, Node}, utils::{hash_to_field, ZERO_VALUE}, vc::{compute_commitment, Step, VectorCommitment, VerkleProof}, Value
 };
 
 pub struct VerkleTree<V: VectorCommitment> {
@@ -96,15 +96,9 @@ impl<V: VectorCommitment> VerkleTree<V> {
                             slots: old_slots,
                         };
                         // If the stems don't match, we need to split the node
-                        *node = split_extension(i, old_node, stem);
-                        // Advance search, so that we consume byte
-                        match node {
-                            Node::Internal { children, ..  } => {
-                                let idx = stem[i] as usize;
-                                node = children[idx].as_deref_mut().unwrap();
-                            }
-                            _ => unreachable!("Cannot have extension node right after splitting"),
-                        }
+                        *node = split_extension(i, old_node, stem, suf, value);
+                        // We can return now that we have added the new extension node
+                        return;
                     } else {
                         // If the stems match, we can just insert the value
                         slots[suf as usize] = Some(value);
@@ -157,13 +151,15 @@ impl<V: VectorCommitment> VerkleTree<V> {
         }
     }
 
-    pub fn prove_get(&mut self, key: [u8; 32]) -> Option<VerkleProof<V>> {
-        let (stem, suf) = split_key(key);
-
+    pub fn commit(&mut self) -> V::Commitment {
         match self.root {
-            None => return None,
             Some(ref mut n) => compute_commitment(&self.vc, n),
-        };
+            None => V::Commitment::default(),
+        }
+    }
+
+    pub fn prove_get(&self, key: [u8; 32]) -> Option<VerkleProof<V>> {
+        let (stem, suf) = split_key(key);
 
         let mut node = match self.root {
             Some(ref n) => n,
@@ -179,6 +175,9 @@ impl<V: VectorCommitment> VerkleTree<V> {
                     
                     let node_commit = self.vc.commit_from_children(commitments);
                     let (child_digest, proof) = self.vc.open_at(&commitments, index);
+
+                    assert_eq!(child_digest, commitments[index], "opening did not return correct value");
+
                     // Push a new proof
                     proof_vec.steps.push(
                         Step::Internal {
@@ -200,11 +199,13 @@ impl<V: VectorCommitment> VerkleTree<V> {
                         return None;
                     }
                     let ext_commit = self.vc.commit_from_children(slot_commitment);
-                    let (_, proof) = self.vc.open_at(&slot_commitment, index);
+                    // Open at the suffix (suf), not the current stem byte (index)
+                    let (slot_digest, proof) = self.vc.open_at(slot_commitment, suf as usize);
                     proof_vec.steps.push(
                         Step::Extension { ext_commit, index: suf as usize, proof }
                     );
                     proof_vec.value = slots[suf as usize].clone().unwrap().0;
+                    assert_eq!(slot_digest, hash_to_field::<V>(&proof_vec.value));
                     return Some(proof_vec);
                 }
             }

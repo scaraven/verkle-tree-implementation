@@ -97,6 +97,25 @@ fn split_deep_divergence_both_retrievable() {
 }
 
 #[test]
+fn split_early_extension() {
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
+    let mut tree = VerkleTree::<KzgVc>::new(kzg.clone());
+
+    let key1 = key_from_bytes(stem_repeat(1), 2);
+    let value1 = Value(vec![3, 4, 5]);
+    tree.insert(key1, value1);
+
+    let mut key2 = key_from_bytes(stem_repeat(1), 3); // Different stem diverges at byte 5
+    key2[1] = 99;
+    let value2 = Value(vec![6, 7, 8]);
+    tree.insert(key2, value2);
+
+    assert_eq!(*tree.get(key1).unwrap().0, vec![3, 4, 5]);
+    assert_eq!(*tree.get(key2).unwrap().0, vec![6, 7, 8]);
+}
+
+#[test]
 fn same_stem_multiple_writes_overwrite_slot() {
     // Inserting twice into the same (stem, suffix) should replace the value.
     let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
