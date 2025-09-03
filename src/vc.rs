@@ -111,61 +111,59 @@ pub fn verify_proof<V: VectorCommitment>(vc: &V, root_commit: &V::Commitment, pr
         return false;
     }
 
-    if proof.steps.len() >= stem.len() + 1 {
+    if proof.steps.len() > stem.len() + 1 { // at most all stem bytes + final extension
         return false; // Too many steps
     }
 
-    let prev_digest = match proof.steps[0] {
-            Step::Internal { child_digest, .. } => child_digest,
-            Step::Extension { .. } => hash_to_field::<V>(&value),
+    // expected_digest stores the digest the next commitment must hash to.
+    // Initially None: first step is checked directly against root.
+    let mut expected_digest: Option<V::Fr> = None;
+    let mut saw_extension = false;
+
+    for (i, step) in proof.steps.iter().enumerate() {
+        // Extract the commitment for this step
+        let commit_ref = match step {
+            Step::Internal { parent_commit, .. } => parent_commit,
+            Step::Extension { ext_commit, .. } => ext_commit,
         };
 
-    // Verify each step in the proof
-    for (i, step) in proof.steps.iter().enumerate() {
-        if i > 0 && !check_parent_child_commits(prev_digest, step) {
-            return false;
+        // Root check or linkage check
+        if i == 0 {
+            if commit_ref != root_commit { return false; }
+        } else {
+            let got = digest_commit::<V>(commit_ref);
+            if Some(got) != expected_digest { return false; }
         }
-
-        let commit: &V::Commitment;
 
         match step {
-            Step::Internal { parent_commit, index, child_digest, proof } => {
-                commit = parent_commit;
-                if !vc.verify_at(parent_commit, *index, *child_digest, proof) {
-                    return false;
-                } else if *index != stem[i] as usize {
-                    return false; // Stem index mismatch
-                } else if i == stem.len() {
-                    return false; // Should not have internal nodes after stem is done
-                }
+            Step::Internal { parent_commit, index, child_digest, proof: opening_proof } => {
+                // Verify opening
+                if !vc.verify_at(parent_commit, *index, *child_digest, opening_proof) { return false; }
+                // Path index correctness
+                if *index != stem[i] as usize { return false; }
+                // Internal node cannot be after consuming all stem bytes
+                if i == stem.len() { return false; }
+                // Next commitment (child) must hash to this child_digest
+                expected_digest = Some(*child_digest);
+                // An Internal step cannot be the last step (must end with Extension)
+                if i + 1 == proof.steps.len() { return false; }
             }
-            Step::Extension { ext_commit, index, proof } => {
-                commit = ext_commit;
-                if *index != suf as usize {
-                    return false; // Suffix index mismatch
-                }
-
-                if !vc.verify_at(ext_commit, *index, hash_to_field::<V>(&value), proof) {
-                    return false;
-                }
+            Step::Extension { ext_commit, index, proof: opening_proof } => {
+                // Suffix index correctness
+                if *index != suf as usize { return false; }
+                // Verify the slot opening to the value digest
+                let val_digest = hash_to_field::<V>(&value);
+                if !vc.verify_at(ext_commit, *index, val_digest, opening_proof) { return false; }
+                // Extension must be terminal
+                if i + 1 != proof.steps.len() { return false; }
+                saw_extension = true;
+                expected_digest = None; // No further steps allowed
             }
-        }
-
-        if i == 0 && commit != root_commit {
-            return false; // Root commitment mismatch
         }
     }
-    // If all steps are valid, return true
+
+    if !saw_extension { return false; }
     true
 }
 
-// Ensures that digest(commit) == parent.child_digest
-fn check_parent_child_commits<V: VectorCommitment>(prev_digest: V::Fr, step: &Step<V>) -> bool {
-    let commit = match step {
-        Step::Internal { parent_commit, .. } => parent_commit,
-        Step::Extension { ext_commit, .. } => ext_commit,
-    };
-
-    let computed_digest = digest_commit::<V>(&commit);
-    computed_digest == prev_digest
-}
+// (former check_parent_child_commits logic now inlined in verify_proof with per-hop chaining)

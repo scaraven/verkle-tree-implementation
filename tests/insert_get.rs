@@ -107,7 +107,7 @@ fn split_early_extension() {
     tree.insert(key1, value1);
 
     let mut key2 = key_from_bytes(stem_repeat(1), 3); // Different stem diverges at byte 5
-    key2[1] = 99;
+    key2[2] = 99;
     let value2 = Value(vec![6, 7, 8]);
     tree.insert(key2, value2);
 
