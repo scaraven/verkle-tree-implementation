@@ -1,7 +1,7 @@
 use ark_ff::PrimeField;
 use ark_serialize::CanonicalSerialize;
 
-use crate::{node::{split_key, Node}, utils::{digest_commit, hash_to_field, ZERO_CHILD, ZERO_VALUE}};
+use crate::{node::{split_key, Node}, utils::{digest_commit, digest_slot, ZERO_CHILD, ZERO_VALUE}};
 
 pub const ARITY: usize = 256;
 pub const ZERO32: [u8; 32] = [0; 32];
@@ -78,11 +78,11 @@ fn compute_internal_commitment<V: VectorCommitment>(vc: &V, node: &mut Node<V>) 
 
 fn compute_extension_commitment<V: VectorCommitment>(vc: &V, node: &mut Node<V>) -> V::Commitment {
     match node {
-        Node::Extension { slots, slot_commitment, .. } => {
+        Node::Extension { stem, slots, slot_commitment, .. } => {
             let mut value_digests: [V::Fr; ARITY] = std::array::from_fn(|_| ZERO_VALUE::<V>());
             for (i, slot_opt) in slots.iter().enumerate() {
                 if let Some(value) = slot_opt {
-                    let digest = hash_to_field::<V>(&value.0);
+                    let digest = digest_slot::<V>(stem, i as u8, &value.0);
                     value_digests[i] = digest;
                 } else {
                     value_digests[i] = ZERO_VALUE::<V>();
@@ -152,7 +152,7 @@ pub fn verify_proof<V: VectorCommitment>(vc: &V, root_commit: &V::Commitment, pr
                 // Suffix index correctness
                 if *index != suf as usize { return false; }
                 // Verify the slot opening to the value digest
-                let val_digest = hash_to_field::<V>(&value);
+                let val_digest = digest_slot::<V>(&stem, suf, &value);
                 if !vc.verify_at(ext_commit, *index, val_digest, opening_proof) { return false; }
                 // Extension must be terminal
                 if i + 1 != proof.steps.len() { return false; }

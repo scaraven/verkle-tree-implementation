@@ -40,8 +40,6 @@ fn proof_accepts_altered_trailing_stem_bytes_bug() {
     let forged_key = make_key(forged_stem, 5); // same suffix as key1
     assert_ne!(forged_key, key1, "forged key must differ");
 
-    // Current (buggy) verifier incorrectly accepts the proof for this forged key.
     let accepted = verify_proof(&kzg, &root, &proof1, forged_key);
-
-    assert!(!accepted, "BUG: verifier accepted forged key");
+    assert!(!accepted, "Forged key was incorrectly accepted; stem not properly bound");
 }

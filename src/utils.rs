@@ -33,3 +33,12 @@ pub(crate) fn digest_commit<V: VectorCommitment>(commit: &V::Commitment) -> V::F
     hash_to_field::<V>(&bytes)
 }
 
+// Digest helper binding full stem + suffix + value bytes for an Extension slot.
+pub(crate) fn digest_slot<V: VectorCommitment>(stem: &[u8;31], suffix: u8, value: &[u8]) -> V::Fr {
+    let mut bytes = Vec::with_capacity(31 + 1 + value.len());
+    bytes.extend_from_slice(stem);
+    bytes.push(suffix);
+    bytes.extend_from_slice(value);
+    hash_to_field::<V>(&bytes)
+}
+

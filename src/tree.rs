@@ -1,5 +1,5 @@
 use crate::{
-    node::{split_extension, split_key, ExtensionNode, Node}, utils::{hash_to_field, ZERO_VALUE}, vc::{compute_commitment, Step, VectorCommitment, VerkleProof}, Value
+    node::{split_extension, split_key, ExtensionNode, Node}, utils::{digest_slot, ZERO_VALUE}, vc::{compute_commitment, Step, VectorCommitment, VerkleProof}, Value
 };
 
 pub struct VerkleTree<V: VectorCommitment> {
@@ -205,7 +205,9 @@ impl<V: VectorCommitment> VerkleTree<V> {
                         Step::Extension { ext_commit, index: suf as usize, proof }
                     );
                     proof_vec.value = slots[suf as usize].clone().unwrap().0;
-                    assert_eq!(slot_digest, hash_to_field::<V>(&proof_vec.value));
+                    // Recompute expected digest binding stem+suffix+value
+                    let expected = digest_slot::<V>(node_stem, suf, &proof_vec.value);
+                    assert_eq!(slot_digest, expected, "slot digest mismatch (stem binding)");
                     return Some(proof_vec);
                 }
             }
