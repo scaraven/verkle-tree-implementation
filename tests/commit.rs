@@ -96,6 +96,33 @@ fn verify_early_extension() {
 }
 
 #[test]
+fn verify_last_byte_divergence() {
+    let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
+    let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
+    let mut tree = VerkleTree::<KzgVc>::new(kzg.clone());
+    let key1 = key_from_bytes(stem_repeat(1), 2);
+    let value1 = Value(vec![3, 4, 5]);
+    tree.insert(key1, value1);
+
+    let root1 = tree.commit();
+    let proof_initial = tree.prove_get(key1).unwrap();
+    assert!(verify_proof(&kzg, &root1, &proof_initial, key1));
+
+    let mut key2 = key_from_bytes(stem_repeat(1), 3); // Different stem diverges at byte 30
+    key2[30] = 99;
+    let value2 = Value(vec![6, 7, 8]);
+    tree.insert(key2, value2);
+
+    let root2 = tree.commit();
+
+    let proof1 = tree.prove_get(key1).unwrap();
+    let proof2 = tree.prove_get(key2).unwrap();
+
+    assert!(verify_proof(&kzg, &root2, &proof1, key1));
+    assert!(verify_proof(&kzg, &root2, &proof2, key2));
+}
+
+#[test]
 fn verify_incorrect_length_proof() {
     let mut rng = StdRng::seed_from_u64(0xDEADBEEFCAFEBABE);
     let kzg = KzgVc::setup(&mut rng).expect("KZG setup should not fail");
