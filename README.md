@@ -59,3 +59,20 @@ fn main() {
   - Path indices for each internal hop.
   - Commitment chaining (parent→child).
   - Final extension opening binds (stem, suffix, value).
+
+## Benchmarking
+Criterion benches measure insertion, commitment, and verification on random keys.
+
+- Run (optimized):
+  - cargo bench
+- Tune sizes with environment variables:
+  - VERKLE_BENCH_N: number of random insertions (default 512)
+  - VERKLE_BENCH_VERIFY_M: number of verifications (default 128; clamped to N)
+- Example:
+  - VERKLE_BENCH_N=2000 VERKLE_BENCH_VERIFY_M=1000 cargo bench
+- Reports:
+  - HTML reports at target/criterion/report/index.html
+
+Notes:
+- Benchmarks are deterministic (fixed RNG seeds).
+- Sizes affect workload; use larger N/M for more stable signals.
